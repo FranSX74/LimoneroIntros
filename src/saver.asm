@@ -51,27 +51,25 @@ V_LP    equ 0CAA1h          ; word
 V_GPTR  equ 0CAA3h          ; word
 V_OUT   equ 0CAA5h          ; word
 V_CNT   equ 0CAA7h          ; word
-; --- efecto maquina de escribir (R_TYPE), calculadas una vez en SCANX
+; --- efecto maquina de escribir (R_TYPE) y salida por arriba (R_SCROLLUP); SCANX las calcula una vez
 V_TH    equ 0CAB0h          ; y >= V_TH => pertenece a la linea 2 (255 = una sola linea)
 V_XMIN1 equ 0CAB1h          ; (XMIN, XMAX) deben ir seguidos
 V_XMAX1 equ 0CAB2h
 V_XMIN2 equ 0CAB3h
 V_XMAX2 equ 0CAB4h
-V_TA    equ 0CAB5h          ; fin de la escritura de la linea 1 (ticks)
-V_TB    equ 0CAB6h          ; fin del avance de linea = inicio de la linea 2
-V_TC    equ 0CAB7h          ; fin de la escritura de la linea 2
-V_F     equ 0CAB8h          ; filas que sube la linea 1 al hacer el retorno de carro (0 o 7)
-V_OYT   equ 0CAB9h          ; desplazamiento total: de la fila inferior a la posicion final
-V_TYLEN equ 0CABAh          ; duracion total del efecto
-V_YT1   equ 0CABBh          ; fila superior de la primera linea (y de su cursor)
-V_H1    equ 0CABCh          ; alto de la primera linea
-V_YBOT  equ 0CABDh          ; ultima fila del bloque de texto ya centrado
-V_W1    equ 0CABEh
-V_W2    equ 0CABFh
-V_U     equ 0CAC0h          ; filas subidas hasta ahora
-V_OY    equ 0CAC1h          ; desplazamiento actual = OYT - U
-V_HC1   equ 0CAC2h          ; columnas ya escritas de cada linea
-V_HC2   equ 0CAC3h
+V_XB    equ 0CAB5h          ; columna izquierda del bloque de texto
+V_P     equ 0CAB6h          ; ticks que tarda el cabezal en recorrer una fila
+V_NR    equ 0CAB7h          ; filas de pixeles del bloque (14 con dos lineas)
+V_MT    equ 0CAB8h          ; subidas totales hasta quedar centrado (47 - fila superior)
+V_TYLEN equ 0CAB9h          ; duracion de la escritura
+V_SLEN  equ 0CABAh          ; duracion de la salida por arriba
+V_YT1   equ 0CABBh          ; fila superior del bloque
+V_YBOT  equ 0CABDh          ; fila inferior del bloque
+V_J     equ 0CAC0h          ; fila que se esta imprimiendo
+V_M     equ 0CAC1h          ; retornos de carro dados
+V_OY    equ 0CAC2h          ; desplazamiento actual = MT - M
+V_HC    equ 0CAC3h          ; columnas ya impresas de la fila actual
+V_HEAD  equ 0CAC4h          ; 1 = hay cabezal
 
         org 4000h
         db "AB"
@@ -145,15 +143,21 @@ mn_l:   push af
 
         call rnd8
         and 3
-        cp 3
-        jr c,out1
-        xor a
+        ld e,a
+        ld a,(V_LAST)
+        cp 8                    ; tras la maquina de escribir, el logo sale por arriba
+        ld a,e
+        jr nz,out1
+        ld a,3
 out1:   ld e,a
         ld d,0
         ld hl,OLEN
         add hl,de
         ld a,(hl)
-        push af
+        or a
+        jr nz,mn_o
+        ld a,(V_SLEN)           ; 0 = depende del texto
+mn_o:   push af
         ld hl,OMASK
         add hl,de
         ld a,(hl)
@@ -1186,10 +1190,11 @@ di_next:
         jr di1
 
 ; ---------------------------------------------------------------------------
-;  Maquina de escribir (efecto "print" de ttfx): la primera linea se escribe abajo,
-;  el retorno de carro la sube, se escribe la segunda abajo y todo sube a su sitio.
+;  Maquina de escribir (efecto "print" de ttfx): se imprime cada fila de pixeles del
+;  logo, de arriba abajo, en la ultima fila de la pantalla; tras cada fila, retorno de
+;  carro (todo sube una fila). Al final el bloque sube hasta quedar centrado.
 ; ---------------------------------------------------------------------------
-; Medidas del texto (una vez): reparto en lineas, anchos, tiempos
+; Medidas del texto (una vez)
 SCANX:
         ld a,255
         ld (V_TH),a
@@ -1222,40 +1227,30 @@ sx2:    call UPDX
         ld de,6
         add ix,de
         jr sx1
-sx4:    ld a,(V_XMAX1)
-        ld hl,V_XMIN1
-        call WIDTHF
-        ld (V_W1),a
-        ld a,(V_XMAX2)
+sx4:    ld a,(V_XMIN1)          ; xb = min, xmax = max (la linea vacia no estorba: 255 / 0)
         ld hl,V_XMIN2
-        call WIDTHF
-        ld (V_W2),a
-        ld a,(V_TH)
-        cp 24
-        ld a,7                  ; retorno de carro: 5 filas de la linea 2 + 2 de separacion
-        jr z,sx5
-        xor a
-sx5:    ld (V_F),a
-        ld a,(V_W1)
+        cp (hl)
+        jr c,sx4a
+        ld a,(hl)
+sx4a:   ld (V_XB),a
+        ld c,a
+        ld a,(V_XMAX1)
+        ld hl,V_XMAX2
+        cp (hl)
+        jr nc,sx4b
+        ld a,(hl)
+sx4b:   sub c
+        inc a                   ; ancho del bloque
+        add a,7
         srl a
-        inc a                   ; 2 columnas por tick
-        ld (V_TA),a
-        ld hl,V_F
-        add a,(hl)
-        ld (V_TB),a
-        ld a,(V_W2)
         srl a
-        inc a
-        ld hl,V_TB
-        add a,(hl)
-        ld (V_TC),a
+        srl a                   ; 8 columnas por tick
+        ld (V_P),a
         ld a,(V_N1)
         or a
         jr z,sx6
         ld a,(V_Y1)
         ld (V_YT1),a
-        ld a,7
-        ld (V_H1),a
         ld a,(V_N2)
         or a
         jr z,sx7
@@ -1267,25 +1262,50 @@ sx7:    ld a,(V_Y1)
         jr sx8
 sx6:    ld a,(V_Y2)             ; solo blanco
         ld (V_YT1),a
-        ld a,5
-        ld (V_H1),a
-        ld a,(V_Y2)
         add a,4
 sx8:    ld (V_YBOT),a
-        ld a,(V_YT1)
-        ld hl,V_H1
-        add a,(hl)
-        dec a                   ; ultima fila de la primera linea
-        ld b,a
-        ld a,47
-        sub b
-        ld (V_OYT),a            ; lo que hay que subirla para dejarla en su sitio
-        ld a,(V_TC)
-        ld hl,V_OYT
-        add a,(hl)
-        ld hl,V_F
+        ld hl,V_YT1
         sub (hl)
+        inc a
+        ld (V_NR),a             ; filas
+        ld a,47
+        sub (hl)
+        ld (V_MT),a
+        ld a,(V_YBOT)
+        add a,2
+        add a,a
+        ld (V_SLEN),a           ; salida: una fila cada 2 ticks
+        ; duracion de la escritura = suma de duraciones de fila + subida final
+        ld a,(V_NR)
+        ld b,a
+        ld c,0
+        ld d,0
+sxl:    ld a,c
+        call ROWDUR
+        add a,d
+        ld d,a
+        inc c
+        djnz sxl
+        ld a,(V_MT)
+        add a,d
+        ld hl,V_NR
+        sub (hl)
+        inc a
         ld (V_TYLEN),a
+        ret
+
+; A = fila j -> A = ticks que dura (las filas vacias entre las dos lineas pasan de golpe)
+ROWDUR: ld hl,V_YT1
+        add a,(hl)              ; y de esa fila
+        ld hl,V_TH
+        cp (hl)
+        jr c,rd_n
+        ld hl,V_Y2
+        cp (hl)
+        jr nc,rd_n
+        ld a,1
+        ret
+rd_n:   ld a,(V_P)
         ret
 
 ; HL -> (min,max): actualiza con B
@@ -1300,70 +1320,58 @@ ux1:    inc hl
         ld (hl),b
 ux2:    ret
 
-; A = max, (HL) = min -> A = max-min+1 (0 si la linea esta vacia)
-WIDTHF: sub (hl)
-        jr c,wf0
-        inc a
-        ret
-wf0:    xor a
-        ret
-
 R_TYPE:
         ld a,(V_TICK)
-        ld b,a                  ; B = tick
-        ld hl,V_TA
-        sub (hl)
-        jr c,ty_u0              ; escribiendo la linea 1: no sube
-        ld hl,V_F
-        cp (hl)
-        jr c,ty_us              ; retorno de carro: u = t-TA
+        ld e,a                  ; E = tick
+        ld b,0                  ; B = fila j
+        ld d,0                  ; D = tick en que empezo la fila j
+rt1:    ld a,(V_NR)
+        cp b
+        jr z,rt_fin
         ld a,b
-        ld hl,V_TC
-        sub (hl)
-        jr c,ty_uF              ; escribiendo la linea 2
-        ld hl,V_F
-        add a,(hl)              ; subida final
-        ld hl,V_OYT
-        cp (hl)
-        jr c,ty_us
-        ld a,(hl)
-        jr ty_us
-ty_uF:  ld a,(V_F)
-        jr ty_us
-ty_u0:  xor a
-ty_us:  ld (V_U),a
+        call ROWDUR
         ld c,a
-        ld a,(V_OYT)
-        sub c
-        ld (V_OY),a
-        ; columnas escritas de cada linea
-        ld a,b
-        ld hl,V_TA
-        cp (hl)
-        jr c,h1
-        ld a,(hl)
-h1:     add a,a
-        ld (V_HC1),a
-        ld a,b
-        ld hl,V_TB
-        sub (hl)
-        jr nc,h2
-        xor a
-        jr h3
-h2:     ld c,a
-        ld a,(V_TC)
-        sub (hl)
-        ld d,a
-        ld a,c
-        cp d
-        jr c,h3
+        ld a,e
+        sub d
+        cp c
+        jr c,rt_in              ; el tick cae dentro de la fila j
         ld a,d
-h3:     add a,a
-        ld (V_HC2),a
-        ; franjas que ocupa el texto en este fotograma
-        ld a,(V_YT1)
-        ld hl,V_OY
-        add a,(hl)
+        add a,c
+        ld d,a
+        inc b
+        jr rt1
+rt_in:  inc a                   ; k+1 tramos de 8 columnas ya impresos
+        add a,a
+        add a,a
+        add a,a
+        ld (V_HC),a
+        ld a,b
+        ld (V_J),a
+        ld (V_M),a
+        ld a,1
+        ld (V_HEAD),a
+        jr rt_go
+rt_fin: ld a,e
+        sub d
+        ld c,a
+        ld a,(V_NR)
+        ld (V_J),a              ; todas las filas impresas
+        dec a
+        add a,c
+        ld hl,V_MT
+        cp (hl)
+        jr c,rt_f2
+        ld a,(hl)
+rt_f2:  ld (V_M),a
+        xor a
+        ld (V_HEAD),a
+rt_go:  ld a,(V_MT)
+        ld hl,V_M
+        sub (hl)
+        ld (V_OY),a             ; desplazamiento actual
+        ; franjas ocupadas: desde la fila 47-M hasta min(47, YBOT+OY)
+        ld a,47
+        sub (hl)
         rrca
         rrca
         rrca
@@ -1389,26 +1397,22 @@ m1:     rrca
         ld a,(hl)
         and c
         ld (V_MASK),a
-        ; pixeles ya escritos
+        ; pixeles: filas anteriores a la actual completas; la actual, hasta el cabezal
         ld ix,PARTS
 tp1:    ld a,(ix+0)
         inc a
         jr z,tp_head
         ld a,(ix+1)
-        ld hl,V_TH
+        ld hl,V_YT1
+        sub (hl)
+        ld hl,V_J
         cp (hl)
-        jr nc,tp_c2
+        jr c,tp_pl              ; fila ya impresa
+        jr nz,tp_next           ; fila pendiente
         ld a,(ix+0)
-        ld hl,V_XMIN1
+        ld hl,V_XB
         sub (hl)
-        ld hl,V_HC1
-        cp (hl)
-        jr nc,tp_next
-        jr tp_pl
-tp_c2:  ld a,(ix+0)
-        ld hl,V_XMIN2
-        sub (hl)
-        ld hl,V_HC2
+        ld hl,V_HC
         cp (hl)
         jr nc,tp_next
 tp_pl:  ld a,(ix+1)
@@ -1422,65 +1426,87 @@ tp_next:
         ld de,6
         add ix,de
         jr tp1
-        ; cabezal de impresion: barra blanca en la columna que se va a escribir
 tp_head:
-        ld a,(V_TICK)
-        ld hl,V_TA
-        cp (hl)
-        jr nc,tp_h2
-        ld a,(V_HC1)
-        ld hl,V_W1
-        cp (hl)
+        ld a,(V_HEAD)
+        or a
+        ret z
+        ld a,(V_HC)
+        ld hl,V_XB
+        add a,(hl)
+        cp 63
         ret nc
-        ld hl,V_XMIN1
-        add a,(hl)
-        ld b,a
-        ld a,(V_YT1)
-        ld hl,V_OY
-        add a,(hl)
-        ld c,a
-        ld a,(V_H1)
-        jr BAR
-tp_h2:  ld a,(V_TICK)
-        ld hl,V_TB
-        cp (hl)
-        ret c
-        ld hl,V_TC
-        cp (hl)
-        ret nc
-        ld a,(V_HC2)
-        ld hl,V_W2
-        cp (hl)
-        ret nc
-        ld hl,V_XMIN2
-        add a,(hl)
-        ld b,a
-        ld a,(V_Y2)
-        ld hl,V_OY
-        add a,(hl)
-        ld c,a
-        ld a,5
-BAR:    push af
-        push bc
+        ld b,a                  ; cabezal: 2 pixeles blancos en la fila inferior
+        ld c,47
         ld e,15
         call PLOTF
-        pop bc
-        pop af
-        inc c
-        dec a
-        jr nz,BAR
+        inc b
+        jp PLOTF
+
+; ---------------------------------------------------------------------------
+;  Salida por arriba: retornos de carro seguidos hasta que el logo sale de la pantalla
+; ---------------------------------------------------------------------------
+R_SCROLLUP:
+        ld a,(V_TICK)
+        srl a                   ; una fila cada 2 ticks
+        ld (V_M),a
+        ld b,a
+        ld a,(V_YBOT)
+        cp b
+        jr nc,su_go
+        xor a                   ; ya no queda nada
+        ld (V_MASK),a
         ret
+su_go:  sub b                   ; fila inferior actual
+        rrca
+        rrca
+        rrca
+        and 1Fh
+        ld e,a
+        ld d,0
+        ld hl,HIMASK
+        add hl,de
+        ld c,(hl)
+        ld a,(V_YT1)
+        sub b
+        jr nc,su_t
+        xor a
+su_t:   rrca
+        rrca
+        rrca
+        and 1Fh
+        ld e,a
+        ld hl,LOMASK
+        add hl,de
+        ld a,(hl)
+        and c
+        ld (V_MASK),a
+        ld ix,PARTS
+su1:    ld a,(ix+0)
+        inc a
+        ret z
+        ld a,(ix+1)
+        ld hl,V_M
+        sub (hl)
+        jr c,su_next            ; ya salio por arriba
+        ld c,a
+        ld b,(ix+0)
+        ld e,(ix+2)
+        call PLOTF
+su_next:
+        ld de,6
+        add ix,de
+        jr su1
 
 ; ---------------------------------------------------------------------------
 ;  Tablas
 ; ---------------------------------------------------------------------------
 DISP:   dw R_DECRYPT,R_RAIN,R_CONVERGE,R_SWEEP,R_SLIDE,R_WAVE,R_EXPAND,R_RISE,R_TYPE
 TLEN:   db 80,56,72,46,46,56,36,56,0
-ODISP:  dw R_EXPLODE,R_FALL,R_DISSOLVE
-OLEN:   db 64,66,70
+ODISP:  dw R_EXPLODE,R_FALL,R_DISSOLVE,R_SCROLLUP
+OLEN:   db 64,66,70,0
 ; franjas de 8 lineas que toca cada efecto (bit g = lineas 8g..8g+7; el texto cabe en las franjas 2 y 3)
 EMASK:  db 0Ch,3Fh,3Fh,0Ch,0Ch,3Fh,0Ch,3Fh,3Fh
-OMASK:  db 3Fh,3Fh,0Ch
+OMASK:  db 3Fh,3Fh,0Ch,3Fh
 GREENS: db 12,3,2,15
 GLOW:   db 0,15,15,11,11,7,7,5,5,4
 
