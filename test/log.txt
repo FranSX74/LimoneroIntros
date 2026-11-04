@@ -1,0 +1,6 @@
+info: Screen saved to /home/fran/Work/msx-screensaver/test/a1.png
+info: Screen saved to /home/fran/Work/msx-screensaver/test/a2.png
+info: Screen saved to /home/fran/Work/msx-screensaver/test/a3.png
+info: Screen saved to /home/fran/Work/msx-screensaver/test/a4.png
+info: Screen saved to /home/fran/Work/msx-screensaver/test/a5.png
+info: Screen saved to /home/fran/Work/msx-screensaver/test/a6.png

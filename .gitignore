@@ -1,0 +1,6 @@
+# Ensamblador N80 (descargar de https://github.com/Konamiman/Nestor80/releases)
+tools/n80/
+build/
+__pycache__/
+tools/n80-dl/
+tools/fonts-dl/
