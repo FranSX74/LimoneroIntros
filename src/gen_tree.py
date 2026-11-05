@@ -44,6 +44,13 @@ def lemons(px):
         else: print("aviso: mancha amarilla que no es una cruz de limon en", min(xs), min(ys), "(se dibuja igual)")
     return out
 
+def write_sheet(path, px):
+    import zlib, struct
+    rgb = dict(PAL); rgb[0] = (0,0,0)
+    rows = b''.join(b'\x00' + b''.join(bytes(rgb[px.get((x, y), 0)]) for x in range(64)) for y in range(48))
+    def ch(t, d): c = struct.pack('>I', len(d)) + t + d; return c + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
+    open(path, 'wb').write(b'\x89PNG\r\n\x1a\n' + ch(b'IHDR', struct.pack('>IIBBBBB', 64, 48, 8, 2, 0, 0, 0)) + ch(b'IDAT', zlib.compress(rows)) + ch(b'IEND', b''))
+
 def main():
     px = load(os.path.join(root, 'tree_sheet.png'))
     ls = lemons(px)
@@ -65,4 +72,5 @@ def main():
             "LEMLEN  equ %d              ; cuelga + cae (d*d/%d = filas)" % (PRE+d, 1 << DIVSHIFT)]
     open(os.path.join(here, 'tree.inc'), 'w').write("\n".join(out) + "\n")
     print(len(ents), "pixeles;", len(ls), "limones; cae el de (%d,%d): %d filas en %d ticks (~%.2f s a 30 ticks/s)" % (fx, fy, fall, d, d/30))
-main()
+if __name__ == '__main__':
+    main()

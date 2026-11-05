@@ -16,3 +16,7 @@ Salvapantallas / intro para MSX en **screen 3** (estilo ttfx de Omarchy), como R
 ## Versión «limonero» (árbol + logo)
 
 `./build_tree.sh` → `build/tree.rom` (`dist/LIMONERO_ARBOL.rom` ya compilada). A la izquierda un limonero (el dibujo es `tree_sheet.png`, 64×48 píxeles reales; `src/gen_tree.py` lo convierte en `src/tree.inc`; el limón más bajo es el que cae) y a la derecha, abajo, el logo. Secuencia: el árbol sale de izquierda a derecha → el logo se imprime en blanco, fila a fila (máquina de escribir) → cae un limón sobre «LIMONERO» y la palabra se pinta de amarillo desde el impacto (después «PRODUCTIONS» en color 5) → destellos → todo se borra de derecha a izquierda y se repite.
+
+## Versión «limonero 2» (dos limones, dos tonos)
+
+`./build_tree2.sh` → `build/tree2.rom` (`dist/LIMONERO_ARBOL2.rom` ya compilada). Dibujo en `tree2_sheet.png` (como la otra hoja, más el amarillo claro 11 = (230,206,128)). Cae primero el limón más bajo (color 11) y pinta LIMONERO de su color; justo después cae el segundo más bajo (color 10) y lo repinta con el color 10 definitivo. La versión anterior queda en la etiqueta `arbol-v1`.
