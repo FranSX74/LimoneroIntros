@@ -76,11 +76,6 @@ V_TQ    equ 0CAD2h          ; word: fin de lo que queda del arbol (al deshacer)
 V_G     equ 0CAD4h          ; columnas barridas al deshacer
 V_TMP2  equ 0CAD5h
 LCX     equ 39              ; centro horizontal del logo
-LEMX    equ 24              ; columna del limon que cae
-LEMY    equ 20              ; fila de su centro (cuelga de la copa)
-LEMFALL equ 10              ; filas que cae hasta tocar la palabra
-LEMPRE  equ 10              ; ticks que cuelga antes de caer
-LEMLEN  equ 24
 WIPELEN equ 44
 WIPET2  equ 10              ; tick en que empieza a pintarse la segunda linea
         org 4000h
@@ -130,6 +125,7 @@ MAIN:
         call RUN                ; 2. maquina de escribir, todo en blanco
         call BAKEW              ; el logo blanco pasa a la escena estatica
 
+        call UNLEMON            ; el limon deja la copa (se dibuja ya como sprite)
         ld a,0Ch
         ld (V_MASK),a
         ld hl,R_LEMON
@@ -1034,23 +1030,56 @@ gr1:    ld a,(hl)
 gr2:    ld (V_TP),hl
         ret
 
+; sustituye el limon colgado (cruz de 5 pixeles) por el color de la copa, en BG y en FB
+UNLEMON:
+        ld hl,LEMOFF
+        ld d,5
+ul1:    ld a,(hl)
+        inc hl
+        add a,LEMX
+        ld b,a
+        ld a,(hl)
+        inc hl
+        add a,LEMY
+        ld c,a
+        ld e,LEMBG
+        push hl
+        push de
+        call PLOTBG
+        call PLOTF
+        pop de
+        pop hl
+        dec d
+        jr nz,ul1
+        ret
+LEMOFF: db 0,-1, -1,0, 0,0, 1,0, 0,1
+
 ; 3. el limon cuelga un momento y cae sobre la palabra
 R_LEMON:
         ld a,(V_TICK)
         sub LEMPRE
         jr nc,lm1
         xor a
-lm1:    ld b,a
-        ld c,a
-        xor a
+lm1:    ld e,a
+        ld d,0
+        ld b,a
+        ld hl,0
         inc b
         dec b
         jr z,lm3
-lm2:    add a,c                 ; A = d*d
+lm2:    add hl,de               ; HL = d*d
         djnz lm2
-lm3:    srl a
-        srl a
-        srl a                   ; dy = d*d/8
+lm3:    ld a,l
+        rlca
+        rlca
+        rlca
+        and 7                   ; L >> 5
+        ld b,a
+        ld a,h
+        add a,a
+        add a,a
+        add a,a                 ; H << 3
+        or b                    ; dy = d*d/32
         cp LEMFALL
         ret nc                  ; ha tocado la palabra: desaparece
         add a,LEMY
