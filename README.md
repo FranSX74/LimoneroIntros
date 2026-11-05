@@ -12,3 +12,7 @@ Salvapantallas / intro para MSX en **screen 3** (estilo ttfx de Omarchy), como R
     python3 patch_text.py ROM "L1|L2"     # cambia el texto de una ROM ya hecha
 
 `dist/LIMONERO_PRODUCTIONS.rom` es la ROM lista para usar. Cualquier tecla sale.
+
+## Versión «limonero» (árbol + logo)
+
+`./build_tree.sh` → `build/tree.rom` (`dist/LIMONERO_ARBOL.rom` ya compilada). A la izquierda un limonero (`src/gen_tree.py` lo define y lo genera como `src/tree.inc`) y a la derecha, abajo, el logo. Secuencia: el árbol sale de izquierda a derecha → el logo se imprime en blanco, fila a fila (máquina de escribir) → cae un limón sobre «LIMONERO» y la palabra se pinta de amarillo desde el impacto (después «PRODUCTIONS» en color 5) → destellos → todo se borra de derecha a izquierda y se repite.
